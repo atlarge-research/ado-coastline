@@ -172,7 +172,6 @@ class ComponentsYaml:
 
         vllm_serve_args = [
             model,
-            "--kernel-config.enable_flashinfer_autotune=False",
             "--dtype",
             dtype.value,
         ]
