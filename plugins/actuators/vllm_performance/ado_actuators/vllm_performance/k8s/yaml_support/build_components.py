@@ -172,16 +172,7 @@ class ComponentsYaml:
 
         vllm_serve_args = [
             model,
-            "--max-num-batched-tokens",
-            f"{max_batch_tokens}",
-            "--gpu-memory-utilization",
-            f"{gpu_memory_utilization}",
-            "--cpu-offload-gb",
-            f"{cpu_offload}",
-            "--max-num-seq",
-            f"{max_num_seq}",
-            "--tensor-parallel-size",
-            f"{n_gpus}",
+            "--kernel-config.enable_flashinfer_autotune=False",
             "--dtype",
             dtype.value,
         ]
