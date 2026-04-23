@@ -172,6 +172,8 @@ class ComponentsYaml:
 
         vllm_serve_args = [
             model,
+            "--renderer-num-workers",
+            "32",
             "--dtype",
             dtype.value,
         ]
