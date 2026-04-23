@@ -82,7 +82,7 @@ class ComponentsYaml:
         memory: str = "128Gi",
         max_batch_tokens: int = 16384,
         gpu_memory_utilization: float = 0.9,
-        dtype: VLLMDtype = VLLMDtype.AUTO,
+        dtype: VLLMDtype = VLLMDtype.FLOAT16,
         cpu_offload: int = 0,
         max_num_seq: int = 256,
         template: str | None = None,
