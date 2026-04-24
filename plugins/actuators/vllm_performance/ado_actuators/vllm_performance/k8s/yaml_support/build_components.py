@@ -172,10 +172,14 @@ class ComponentsYaml:
 
         vllm_serve_args = [
             model,
-            "--renderer-num-workers",
-            "32",
-            "--mm-processor-cache-gb",
-            "0",
+            #"--renderer-num-workers",
+            #"32",
+            #"--mm-processor-cache-gb",
+            #"0",
+            "--max-num-seqs",
+            "256",
+            "--max-num-batched-tokens",
+            "256",
             "--dtype",
             dtype.value,
         ]
