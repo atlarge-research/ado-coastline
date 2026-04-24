@@ -174,6 +174,8 @@ class ComponentsYaml:
             model,
             "--renderer-num-workers",
             "32",
+            "--mm-processor-cache-gb",
+            "0",
             "--dtype",
             dtype.value,
         ]
