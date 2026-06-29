@@ -1,0 +1,44 @@
+[project]
+name = "ado-coastline"
+description = "A COASTLINE plugin: a better AutoConf that uses AutoConf. It reuses the AutoConf feasibility check, then ranks feasible GPU layouts by a performance/energy trade-off (Kavier analytical throughput + power)."
+dependencies = [
+  "ado-core>=1.2.3",
+  # COASTLINE's recommender engine + public ``coastline`` facade (pulls kavier, pandas,
+  # pydantic, ... transitively). Not yet on PyPI; for local dev install the checkout
+  # editable (``pip install -e <coastline>``) or rely on the umbrella sibling fallback.
+  "coastline-recommender",
+]
+dynamic = ["version"]
+
+[project.entry-points."ado.custom_experiments"]
+ado_coastline = "ado_coastline.recommender_experiment"
+
+# AutoConf feasibility is the default backend and the reason COASTLINE is "a better
+# AutoConf". It pulls the heavy AutoGluon/torch stack, so it is an opt-in extra;
+# without it the plugin degrades to a divisibility-rule feasibility check.
+[project.optional-dependencies]
+autoconf = ["ado-autoconf"]
+
+[dependency-groups]
+dev = [
+  "pytest>=9.0.1",
+]
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning>=0.7.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ado_coastline"]
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+pattern = "default-unprefixed"
+fallback-version = "0.0.0"
+tagged-metadata = true
+dirty = true
+bump = true

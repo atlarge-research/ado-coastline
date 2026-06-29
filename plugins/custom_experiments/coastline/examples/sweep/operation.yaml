@@ -1,0 +1,19 @@
+# Copyright IBM Corporation 2025, 2026
+# SPDX-License-Identifier: MIT
+#
+# RandomWalk over the COASTLINE recommendation space. Run after creating the space:
+#   ado create space -f examples/sweep/space.yaml
+#   ado create operation -f examples/sweep/operation.yaml --use-latest space
+spaces:
+  - this will be rewritten
+operation:
+  module:
+    moduleClass: "RandomWalk"
+  parameters:
+    batchSize: 4
+    numberEntities: all
+    singleMeasurement: true
+    maxRetries: 0
+    samplerConfig:
+      mode: sequential
+      samplerType: generator
