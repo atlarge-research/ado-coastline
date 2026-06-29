@@ -1,0 +1,20 @@
+# Copyright IBM Corporation 2025, 2026
+# SPDX-License-Identifier: MIT
+#
+# Headline example: COASTLINE multi-objective recommendation that *uses* AutoConf
+# for feasibility (feasibility defaults to "autoconf"), then ranks the feasible GPU
+# layouts by a balanced performance/energy trade-off.
+#
+# Run from the root of the ado repository:
+#   run_experiment plugins/custom_experiments/coastline/examples/simple.yaml
+entity:
+  model_name: granite-3.3-8b
+  method: lora
+  gpu_model: NVIDIA-A100-80GB-PCIe
+  tokens_per_sample: 2048
+  batch_size: 16
+  preset: balanced
+  max_gpus: 8
+experiments:
+  - actuatorIdentifier: custom_experiments
+    experimentIdentifier: coastline_recommender

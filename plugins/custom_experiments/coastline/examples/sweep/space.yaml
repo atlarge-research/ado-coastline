@@ -1,0 +1,35 @@
+# Copyright IBM Corporation 2025, 2026
+# SPDX-License-Identifier: MIT
+#
+# Sweep COASTLINE recommendations over a configuration space. Each point yields a
+# recommended GPU layout (gpus/workers/total_gpus) plus predicted throughput, power
+# and tokens-per-watt. Feasibility defaults to the AutoConf check.
+experiments:
+  - experimentIdentifier: coastline_recommender
+    actuatorIdentifier: custom_experiments
+entitySpace:
+  - identifier: "model_name"
+    propertyDomain:
+      values:
+        - "granite-3-8b"
+        - "granite-3.3-8b"
+        - "granite-3.1-8b-instruct"
+        - "mistral-7b-v0.1"
+  - identifier: "method"
+    propertyDomain:
+      values: ["full", "lora"]
+  - identifier: "gpu_model"
+    propertyDomain:
+      values: ["NVIDIA-A100-SXM4-80GB", "NVIDIA-A100-80GB-PCIe"]
+  - identifier: "tokens_per_sample"
+    propertyDomain:
+      values: [1024, 2048, 4096]
+  - identifier: "batch_size"
+    propertyDomain:
+      values: [8, 16, 32]
+  - identifier: "preset"
+    propertyDomain:
+      values: ["balanced", "energy", "performance"]
+  - identifier: "max_gpus"
+    propertyDomain:
+      values: [8]
