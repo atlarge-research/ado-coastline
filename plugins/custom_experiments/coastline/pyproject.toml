@@ -1,0 +1,58 @@
+[project]
+name = "ado-coastline"
+description = "COASTLINE custom experiments that recommend a GPU layout for a tuning job: they reuse the AutoConf feasibility check and rank the feasible layouts by a performance/energy trade-off (Kavier analytical throughput and power)."
+readme = "README.md"
+# The floor is the COASTLINE engine's (>=3.11); the <3.14 cap is inherited from it too,
+# via ado-autoconf -> autogluon==1.5, which caps pyarrow<21. ado-core itself allows 3.10.
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "ado-core>=2.0.0",
+]
+dynamic = ["version"]
+
+[project.entry-points."ado.custom_experiments"]
+coastline = "ado_coastline.recommender_experiment"
+
+# The engine is an extra, not a hard dependency: it pulls ado-autoconf and therefore the
+# autogluon/torch stack, which no ado user should have to install just to see this plugin's
+# experiments in the catalog. Without it the package still installs, imports and registers
+# both experiments, and they raise a typed error when actually measured; with it they run.
+# No environment marker is needed -- the engine supports the same 3.11-3.13 range as this
+# package.
+[project.optional-dependencies]
+coastline = ["coastline-recommender>=0.2.3"]
+
+[dependency-groups]
+dev = [
+  "pytest>=9.0.1",
+]
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning>=0.7.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ado_coastline"]
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+pattern = "default-unprefixed"
+pattern-prefix = "coastline/"
+fallback-version = "0.0.0"
+format-jinja-imports = [{ module = "datetime", item = "datetime" }]
+format-jinja = """
+{%- set metadata = [
+    distance != 0 and "g" ~ commit,
+    distance != 0 and "d" ~ datetime.utcnow().strftime("%Y%m%d%H%M%S"),
+    dirty and "dirty"
+] -%}
+{{ serialize_pep440(
+    distance == 0 and base or bump_version(base),
+    dev=distance or None,
+    metadata=metadata | select | list
+) }}
+"""

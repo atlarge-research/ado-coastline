@@ -148,6 +148,7 @@ And `scope` is one of the following:
 - **changelog**: changes to the changelog
 - **ci**: changes related to files used by CI
 - **cli**: changes regarding ado-core CLI
+- **coastline**: changes to ado-coastline
 - **container**: changes to the Dockerfiles
 - **contributing**: changes to contributing
 - **core**: anything that involves ado-core and does not fall into a more

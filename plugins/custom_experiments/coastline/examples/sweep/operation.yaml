@@ -1,0 +1,28 @@
+# Copyright IBM Corporation 2025, 2026
+# SPDX-License-Identifier: MIT
+#
+# RandomWalk over the COASTLINE recommendation space: one measurement for every
+# point of the space. Run from the root of the ado repository, after the space
+# exists:
+#   uv run ado create space -f plugins/custom_experiments/coastline/examples/sweep/space.yaml
+#   uv run ado create operation -f plugins/custom_experiments/coastline/examples/sweep/operation.yaml --use-latest space
+#
+# --use-latest space replaces the placeholder id below with the id of the most
+# recently created space. Edit it by hand to target a different space.
+spaces:
+  - "space-a1b2c3-default" # Placeholder: see the note above
+operation:
+  module:
+    operatorName: random_walk
+    operationType: explore
+  parameters:
+    numberEntities: all
+    batchSize: 4
+    singleMeasurement: true
+    maxRetries: 0
+    samplerConfig:
+      mode: sequential
+      samplerType: generator
+metadata:
+  name: coastline_recommendation_sweep
+  description: "Measure every point of the COASTLINE recommendation space"

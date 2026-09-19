@@ -66,7 +66,7 @@ Run the following to get the latest tag for each component:
 ```bash
 git tag --sort=-version:refname \
   | grep -E \
-    '^(autoconf|sfttrainer|vllm-performance|trim|cplex-mip|anomalous-series|ray-tune|profile-space|example-actuator)/'
+    '^(autoconf|sfttrainer|vllm-performance|trim|coastline|cplex-mip|anomalous-series|ray-tune|profile-space|example-actuator)/'
 ```
 
 For each component, the latest tag has the form `<component>/<version>`.
@@ -87,6 +87,7 @@ plugin. The complete list of component scopes to exclude is:
 - `sfttrainer`, `sft_trainer`
 - `vllm_performance`, `vllm-performance`
 - `trim`
+- `coastline`
 - `cplex-mip`, `cplex_mip`
 - `anomalous-series`, `anomalous_series`
 - `profile-space`, `profile_space`
@@ -130,6 +131,7 @@ section for each component that has entries, in this order:
 - `## 📈 vLLM Performance X.Y.Z` (scopes: `vllm_performance`,
   `vllm-performance`)
 - `## ✂️ TRIM X.Y.Z` (scope: `trim`)
+- `## 🧭 COASTLINE X.Y.Z` (scope: `coastline`)
 - `## 🧮 CPLEX-MIP X.Y.Z` (scopes: `cplex-mip`, `cplex_mip`)
 - `## 🚨 Detect Anomalous Series X.Y.Z` (scopes: `anomalous-series`,
   `anomalous_series`)
