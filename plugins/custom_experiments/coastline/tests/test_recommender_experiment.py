@@ -469,30 +469,21 @@ class TestEmpiricalTokenBudgetContract:
       engine's own bare ``feasibility="rules"``, which has no memory model at all.
     - ``none``: nothing.
 
-    Both experiments share ``_run_recommendation``, so the budget cases cover each.
+    Both experiments share ``_run_recommendation``. The multi-objective experiment holds
+    the per-device batch fixed, so the budget vetoes the whole job; ``min_gpu`` splits
+    the job's total batch, so the budget picks the first GPU count that brings the
+    per-device load under it, and refuses the job only when no count does.
     """
 
-    @pytest.mark.parametrize(
-        "experiment",
-        [coastline_recommender, coastline_min_gpu_recommender],
-        ids=["multi_objective", "min_gpu"],
-    )
-    def test_over_budget_load_is_refused_on_rules(
-        self, experiment: Callable[..., Any]
-    ) -> None:
-        """A per-device load above the budget yields no recommendation on ``rules``.
-
-        Args:
-            experiment: The experiment under test; both route through the same
-                recommendation path, so the guard must bite on either.
-        """
+    def test_over_budget_load_is_refused_on_rules(self) -> None:
+        """A per-device load above the budget yields no recommendation on ``rules``."""
         assert per_device_tokens(OVER_BUDGET_INPUTS) > EMPIRICAL_OOM_TOKEN_BUDGET, (
             f"this case is only a guard test while its per-device load "
             f"({per_device_tokens(OVER_BUDGET_INPUTS)} tokens) is above the empirical "
             f"budget of {EMPIRICAL_OOM_TOKEN_BUDGET}"
         )
 
-        result = unwrap(experiment)(**OVER_BUDGET_INPUTS)
+        result = unwrap(coastline_recommender)(**OVER_BUDGET_INPUTS)
 
         assert result["can_recommend"] is False, (
             f"a load of {per_device_tokens(OVER_BUDGET_INPUTS)} tokens/device is over "
@@ -503,6 +494,43 @@ class TestEmpiricalTokenBudgetContract:
             "a refused row must still name the backend that refused it, or a sweep "
             "cannot tell this veto from an AutoConf one"
         )
+
+    def test_min_gpu_splits_an_over_budget_batch_until_it_fits(self) -> None:
+        """``min_gpu`` splits the job's total batch over the first GPU count that fits.
+
+        The batch is the job's TOTAL, so on one GPU the load is over the budget, and the
+        first power of two that divides the batch and brings the per-device load under
+        the budget is the pick, with the batch split evenly.
+        """
+        total = OVER_BUDGET_INPUTS["batch_size"]
+        tokens = OVER_BUDGET_INPUTS["tokens_per_sample"]
+        assert total * tokens > EMPIRICAL_OOM_TOKEN_BUDGET
+        expected = next(
+            g
+            for g in (1, 2, 4, 8)
+            if total % g == 0 and (total // g) * tokens <= EMPIRICAL_OOM_TOKEN_BUDGET
+        )
+
+        result = unwrap(coastline_min_gpu_recommender)(**OVER_BUDGET_INPUTS)
+
+        assert result["can_recommend"] is True
+        assert result["feasibility_backend"] == "rules"
+        assert result["total_gpus"] == expected
+        assert result["recommended_batch_size"] * result["total_gpus"] == total
+        assert result["recommended_batch_size"] * tokens <= EMPIRICAL_OOM_TOKEN_BUDGET
+
+    def test_min_gpu_refuses_when_no_split_fits(self) -> None:
+        """A total batch of 1 cannot be split, so an over-budget load is refused."""
+        inputs = {
+            **COMMON_INPUTS,
+            "batch_size": 1,
+            "tokens_per_sample": EMPIRICAL_OOM_TOKEN_BUDGET + 1,
+        }
+
+        result = unwrap(coastline_min_gpu_recommender)(**inputs)
+
+        assert result["can_recommend"] is False
+        assert result["feasibility_backend"] == "rules"
 
     def test_under_budget_load_still_recommends_on_rules(self) -> None:
         """The guard vetoes only over-budget loads: a smaller one still recommends."""

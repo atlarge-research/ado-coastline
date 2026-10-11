@@ -1,9 +1,10 @@
 # Copyright IBM Corporation 2025, 2026
 # SPDX-License-Identifier: MIT
 #
-# Minimum-GPU example: the smallest AutoConf-feasible GPU layout, reported with
-# Kavier predicted throughput and power. COASTLINE's analogue of autoconf's
-# min_gpu_recommender.
+# Minimum-GPU example: the algorithm of autoconf's min_gpu_recommender. It keeps the
+# job's total batch_size and returns the first GPU count in 1, 2, 4, ... that is
+# feasible with the batch split evenly, reported with Kavier predicted throughput
+# and power.
 #
 # Run from the root of the ado repository:
 #   uv run run_experiment plugins/custom_experiments/coastline/examples/min_gpu.yaml

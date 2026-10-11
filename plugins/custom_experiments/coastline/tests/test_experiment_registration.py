@@ -81,7 +81,7 @@ README_OPTIONAL_DEFAULTS = {
     "coastline_recommender": {
         "max_gpus": 8,
         "gpus_per_node": 8,
-        "preset": "balanced",
+        "preset": "performance",
         "feasibility": "autoconf",
         "feasibility_model": "",
     },

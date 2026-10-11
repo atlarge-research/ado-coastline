@@ -20,7 +20,7 @@ coastline = "ado_coastline.recommender_experiment"
 # No environment marker is needed -- the engine supports the same 3.11-3.13 range as this
 # package.
 [project.optional-dependencies]
-coastline = ["coastline-recommender>=0.2.3"]
+coastline = ["coastline-recommender>=0.3.0,<0.4"]
 
 [dependency-groups]
 dev = [

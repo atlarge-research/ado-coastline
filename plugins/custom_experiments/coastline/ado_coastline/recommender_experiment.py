@@ -12,14 +12,15 @@ returning the best configuration under a chosen policy.
 Two custom experiments are exposed:
 
 ``coastline_recommender``
-    Multi-objective recommendation. A preset (``balanced`` / ``energy`` /
-    ``performance`` and their ``-frontier`` variants) weights the runtime-vs-power
-    trade-off. This is the headline "better AutoConf" experiment.
+    Multi-objective recommendation. A preset (``performance`` by default,
+    ``balanced`` or ``energy``, and their ``-frontier`` variants) weights runtime
+    against energy. This is the headline "better AutoConf" experiment.
 
 ``coastline_min_gpu_recommender``
-    The minimum-GPU policy over the same AutoConf-gated feasible set -- a direct,
-    COASTLINE-driven analogue of the autoconf ``min_gpu_recommender`` that also
-    reports predicted throughput and power for the pick.
+    AutoConf's minimum-GPU algorithm, as in the autoconf ``min_gpu_recommender``: it
+    keeps the job's total ``batch_size`` and returns the first GPU count in 1, 2, 4,
+    ... (up to ``max_gpus``) that passes the feasibility check with the batch split
+    evenly, and also reports predicted throughput and power for the pick.
 
 Both default to AutoConf feasibility (``feasibility="autoconf"``) -- the engine's
 structural guards (a positive GPU count, a per-device batch of at least 1) followed by
@@ -57,11 +58,10 @@ _MULTI_OBJECTIVE_PRESETS = [
     "performance-frontier",
 ]
 
-# The COASTLINE facade declares ``recommend(preset: str = "balanced")``, so "no preset"
-# has to be spelled as a string. ``min_gpu`` never reads it (see
-# :func:`_preset_to_facade_args`), and COASTLINE's own engine normalizes the same way --
-# ``sdk/recommend/engine.py::build_config`` writes ``preset or "balanced"``.
-_FACADE_DEFAULT_PRESET = "balanced"
+# The COASTLINE facade declares ``recommend(preset: str = "performance")``, so "no
+# preset" has to be spelled as a string. ``min_gpu`` never reads it (see
+# :func:`_preset_to_facade_args`).
+_FACADE_DEFAULT_PRESET = "performance"
 
 
 def _powers_of_two(limit: int) -> list[int]:
@@ -139,10 +139,13 @@ TokensPerSample = ConstitutiveProperty(
 BatchSize = ConstitutiveProperty(
     identifier="batch_size",
     metadata={
-        "description": "PER-DEVICE training batch size, i.e. the batch each GPU "
-        "processes. It is held fixed: the recommenders optimise the GPU layout "
-        "around it. COASTLINE converts it to AutoConf's total effective batch "
-        "(per-device x total GPUs) at the feasibility boundary."
+        "description": "Training batch size. For coastline_recommender it is the "
+        "PER-DEVICE batch, held fixed while the GPU layout is optimised, so the job's "
+        "total batch is batch_size x total_gpus. For coastline_min_gpu_recommender it "
+        "is the job's TOTAL batch, as in autoconf's min_gpu_recommender: it is split "
+        "evenly over the GPUs, so only GPU counts that divide it are tried. COASTLINE "
+        "converts a per-device batch to AutoConf's total effective batch at the "
+        "feasibility boundary."
     },
     propertyDomain=PropertyDomain(
         variableType=VariableTypeEnum.CONTINUOUS_VARIABLE_TYPE,
@@ -177,8 +180,9 @@ GPUsPerNode = ConstitutiveProperty(
 Preset = ConstitutiveProperty(
     identifier="preset",
     metadata={
-        "description": "The multi-objective preset weighting the runtime-vs-power "
-        "trade-off. The '-frontier' variants select from the Pareto frontier."
+        "description": "The multi-objective preset weighting runtime against energy: "
+        "performance (default, 0.8/0.2), balanced (0.5/0.5) or energy (0.2/0.8). The "
+        "'-frontier' variants select from the Pareto frontier."
     },
     propertyDomain=PropertyDomain(
         variableType=VariableTypeEnum.CATEGORICAL_VARIABLE_TYPE,
@@ -359,11 +363,13 @@ def _run_recommendation(
 ) -> dict[str, Any]:
     """Build a COASTLINE workload/context and return the top recommendation.
 
-    The user-supplied ``batch_size`` is held fixed; COASTLINE sweeps GPU layouts
-    (powers of two up to ``max_gpus``), checks each for feasibility (AutoConf by
-    default), simulates throughput + power with Kavier, and the policy implied by
-    ``preset`` selects the winner. The work goes through the public ``coastline``
-    facade (``coastline.Coastline``), not COASTLINE pipeline internals.
+    For a multi-objective preset, the per-device ``batch_size`` is held fixed;
+    COASTLINE sweeps GPU layouts (powers of two up to ``max_gpus``), checks each for
+    feasibility (AutoConf by default), simulates throughput + power with Kavier, and
+    the preset's policy selects the winner. For ``min_gpu``, ``batch_size`` is the
+    job's total batch: COASTLINE splits it evenly over 1, 2, 4, ... GPUs and returns
+    the first feasible count. The work goes through the public ``coastline`` facade
+    (``coastline.Coastline``), not COASTLINE pipeline internals.
 
     The ``rules`` backend -- requested outright or degraded to by
     :func:`_resolve_feasibility_backend` -- additionally enables the engine's empirical
@@ -375,8 +381,10 @@ def _run_recommendation(
         method: The fine-tuning method, ``full`` or ``lora``.
         gpu_model: The GPU model the job will run on.
         tokens_per_sample: Sequence length, in tokens, of one training sample.
-        batch_size: PER-DEVICE batch size, held fixed across the search. COASTLINE
-            converts it to AutoConf's total effective batch internally.
+        batch_size: For a multi-objective preset, the PER-DEVICE batch size, held
+            fixed across the search; for ``min_gpu``, the job's TOTAL batch size.
+            COASTLINE converts a per-device batch to AutoConf's total effective batch
+            internally.
         max_gpus: Upper bound on the TOTAL GPUs a recommendation may use.
         gpus_per_node: GPUs available per node, bounding the layout's per-node width.
         preset: A multi-objective preset, or ``min_gpu``.
@@ -407,15 +415,17 @@ def _run_recommendation(
     backend = _resolve_feasibility_backend(feasibility, AutoconfFeasibilityChecker)
     facade_strategy, facade_preset, strategy_label = _preset_to_facade_args(preset)
 
-    # Hold the user's batch size fixed; optimise the GPU layout (powers of two) only.
+    # Multi-objective: hold the per-device batch fixed and optimise the GPU layout
+    # (powers of two). min_gpu: split the job's total batch over the fewest feasible GPUs.
     context = SystemContext.for_gpus(
         [gpu_model],
         max_gpus=max_gpus,
         gpus_per_node=gpus_per_node,
         max_nodes=max(1, math.ceil(max_gpus / max(gpus_per_node, 1))),
     )
-    # Keys are WorkloadSpec field names -- COASTLINE's single input vocabulary. Note
-    # that its `batch_size` is PER-DEVICE (Kavier's convention).
+    # Keys are WorkloadSpec field names -- COASTLINE's single input vocabulary. Its
+    # `batch_size` is PER-DEVICE (Kavier's convention); with no layout given, `min_gpu`
+    # reads it as the job's total batch on one GPU and splits it.
     workload: dict[str, Any] = {
         "llm_model": model_name,
         "fine_tuning_method": method,
@@ -434,10 +444,12 @@ def _run_recommendation(
     # empirical per-device token budget, so a run without AutoConf still has a memory
     # check. `none`: nothing, truly.
     #
-    # The budget bounds `batch_size x tokens_per_sample`, and `batch_sizes` below pins
-    # the grid to the one batch size the caller asked for, so both factors are the same
-    # for every candidate: the budget vetoes the whole grid or none of it. It is a
-    # job-level veto, never a per-layout one.
+    # The budget bounds the per-device `batch_size x tokens_per_sample`. For a
+    # multi-objective preset, `batch_sizes` below pins the grid to the one per-device
+    # batch the caller asked for, so the budget vetoes the whole grid or none of it.
+    # Under `min_gpu` the per-device batch is the total over the GPU count, so the
+    # budget judges each count: an over-budget batch is split until it fits, and
+    # refused only when no count up to `max_gpus` brings it under.
     engine = Coastline(
         predictor="kavier",
         energy="kavier_power",
@@ -581,7 +593,7 @@ def _safe_recommend(parameters: dict[str, Any]) -> dict[str, Any]:
         "description": "COASTLINE multi-objective recommender: reuses the AutoConf "
         "feasibility check, then ranks feasible GPU layouts by a performance/energy "
         "trade-off (Kavier analytical throughput + power) under the chosen preset "
-        "(balanced/energy/performance, and -frontier variants)."
+        "(performance by default, balanced, energy, and -frontier variants)."
     },
     parameterization={},
     version="1.0.0",
@@ -594,7 +606,7 @@ def coastline_recommender(
     batch_size: int,
     max_gpus: int = 8,
     gpus_per_node: int = 8,
-    preset: str = "balanced",
+    preset: str = "performance",
     feasibility: str = "autoconf",
     feasibility_model: str = "",
 ) -> dict[str, Any]:
@@ -608,7 +620,7 @@ def coastline_recommender(
         batch_size: PER-DEVICE batch size, held fixed across the search.
         max_gpus: Upper bound on the TOTAL GPUs a recommendation may use.
         gpus_per_node: GPUs available per node on the target cluster.
-        preset: The multi-objective preset weighting runtime against power.
+        preset: The multi-objective preset weighting runtime against energy.
         feasibility: The feasibility backend: ``autoconf``, ``rules`` or ``none``.
         feasibility_model: Optional AutoConf model-name override for the feasibility
             check; empty string to use ``model_name``.
@@ -633,7 +645,7 @@ def coastline_recommender(
     )
 
 
-# Custom experiment 2: minimum-GPU recommender (AutoConf analogue).
+# Custom experiment 2: minimum-GPU recommender (AutoConf's algorithm).
 
 
 @custom_experiment(
@@ -647,10 +659,10 @@ def coastline_recommender(
     optional_properties=[MaxGPUs, GPUsPerNode, Feasibility, FeasibilityModel],
     output_property_identifiers=_OUTPUT_IDENTIFIERS,
     metadata={
-        "description": "COASTLINE minimum-GPU recommender: the smallest feasible GPU "
-        "layout over the AutoConf-gated feasible set, reported with Kavier predicted "
-        "throughput and power. A COASTLINE-driven analogue of autoconf's "
-        "min_gpu_recommender."
+        "description": "COASTLINE minimum-GPU recommender, autoconf's "
+        "min_gpu_recommender algorithm: it keeps the job's total batch_size and "
+        "returns the first GPU count in 1, 2, 4, ... that is feasible with the batch "
+        "split evenly, reported with Kavier predicted throughput and power."
     },
     parameterization={},
     version="1.0.0",
@@ -673,7 +685,8 @@ def coastline_min_gpu_recommender(
         method: The fine-tuning method, ``full`` or ``lora``.
         gpu_model: The GPU model the job will run on.
         tokens_per_sample: Sequence length, in tokens, of one training sample.
-        batch_size: PER-DEVICE batch size, held fixed across the search.
+        batch_size: The job's TOTAL batch size, kept and split evenly over the GPUs;
+            only GPU counts that divide it are tried.
         max_gpus: Upper bound on the TOTAL GPUs a recommendation may use.
         gpus_per_node: GPUs available per node on the target cluster.
         feasibility: The feasibility backend: ``autoconf``, ``rules`` or ``none``.

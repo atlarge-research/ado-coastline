@@ -22,17 +22,20 @@ Both experiments are registered under the `custom_experiments` actuator.
 ### `coastline_recommender` (multi-objective — headline)
 
 Recommends the best GPU layout for a tuning job by ranking AutoConf-feasible
-candidates under a preset that weights the runtime-versus-power trade-off:
+candidates under a preset that weights runtime against energy (α on runtime,
+β on energy):
 
-- `balanced` (default), `energy`, `performance`
-- `balanced-frontier`, `energy-frontier`, `performance-frontier` (rank only
+- `performance` (default, α = 0.8), `balanced` (α = 0.5), `energy` (α = 0.2)
+- `performance-frontier`, `balanced-frontier`, `energy-frontier` (rank only
   over the non-dominated Pareto frontier)
 
-### `coastline_min_gpu_recommender` (minimum-GPU — AutoConf analogue)
+### `coastline_min_gpu_recommender` (minimum-GPU — AutoConf's algorithm)
 
-Returns the smallest feasible GPU layout over the same AutoConf-gated feasible
-set, reported with Kavier predicted throughput and power. This is the direct
-COASTLINE-driven analogue of autoconf's `min_gpu_recommender`.
+Runs the algorithm of autoconf's `min_gpu_recommender`: it keeps the job's
+total `batch_size` and returns the first GPU count in 1, 2, 4, … (up to
+`max_gpus`) that passes the feasibility check with the batch split evenly,
+reported with Kavier predicted throughput and power. Only GPU counts that
+divide the batch are tried, so a total batch of 1 is checked on one GPU only.
 
 ## Inputs
 
@@ -45,10 +48,10 @@ Both experiments take the same properties, except `preset`, which only
 | `method` | yes | — | `full` or `lora` |
 | `gpu_model` | yes | — | `L40S`, `NVIDIA-A100-80GB-PCIe`, `NVIDIA-A100-SXM4-80GB`, `NVIDIA-H100-PCIe` |
 | `tokens_per_sample` | yes | — | Maximum sequence length |
-| `batch_size` | yes | — | Per-device batch; held fixed, only the GPU layout is optimised |
+| `batch_size` | yes | — | `coastline_recommender`: the per-device batch, held fixed while the GPU layout is optimised. `coastline_min_gpu_recommender`: the job's total batch, split evenly over the GPUs |
 | `max_gpus` | no | `8` | Sweep total GPU counts (powers of two) up to this |
 | `gpus_per_node` | no | `8` | Node packing limit |
-| `preset` | no | `balanced` | `coastline_recommender` only |
+| `preset` | no | `performance` | `coastline_recommender` only |
 | `feasibility` | no | `autoconf` | Which mechanism gates a candidate: `autoconf`, `rules` or `none`. They are different checks, not three strengths of one — see [Feasibility](#feasibility) |
 | `feasibility_model` | no | `""` | AutoConf model-name override for the OOM check; empty means use `model_name` |
 
@@ -72,7 +75,7 @@ Every prediction below describes the **whole job**, never one GPU.
 | `gpus` | GPUs per worker |
 | `workers` | Workers (nodes) |
 | `total_gpus` | `gpus × workers` |
-| `recommended_batch_size` | Per-device batch of the winning candidate; equals the requested `batch_size`, which is held fixed |
+| `recommended_batch_size` | Per-device batch of the winning candidate: the requested `batch_size` for `coastline_recommender`, and `batch_size / total_gpus` for `coastline_min_gpu_recommender` |
 | `predicted_throughput` | Kavier predicted throughput of the job as a whole, across all `total_gpus` GPUs [tokens/s] |
 | `predicted_power_watts` | Kavier predicted power of the job as a whole: the instantaneous draw of all `total_gpus` GPUs together, **not** the per-GPU figure [W] |
 | `tokens_per_watt` | `predicted_throughput / predicted_power_watts`, both job-level, so a job-level efficiency [tokens/J] |
@@ -128,10 +131,13 @@ candidate is refused when its `batch_size × tokens_per_sample` exceeds 60,224
 tokens per device, a threshold fitted to the OOMs observed in COASTLINE's
 calibration campaigns. The guard can only turn feasible into infeasible.
 
-Both factors of that product are fixed across the sweep — `batch_size` is held
-fixed by design and `tokens_per_sample` is an input — so every candidate in the
-grid carries the same per-device load: the budget vetoes the whole job or none
-of it. It is a job-level veto, never a way of preferring one layout to another.
+For `coastline_recommender`, both factors of that product are fixed across the
+sweep — the per-device `batch_size` is held fixed by design and
+`tokens_per_sample` is an input — so every candidate carries the same per-device
+load: the budget vetoes the whole job or none of it. For
+`coastline_min_gpu_recommender`, the per-device batch is the total batch over the
+GPU count, so the budget judges each count: an over-budget batch is split until
+it fits, and refused only when no count up to `max_gpus` brings it under.
 
 This is **stricter than the engine's own `feasibility="rules"`**, which is the
 structural guards alone and carries no memory model of any kind. The plugin
@@ -173,7 +179,8 @@ different things produce it, and the row alone does not say which:
 
 - AutoConf's OOM classifier refused every candidate (`autoconf`).
 - The empirical per-device token budget refused every candidate (`rules`) —
-  with the batch size held fixed, that veto is all-or-nothing for the job.
+  for `coastline_recommender` that veto is all-or-nothing for the job, and for
+  `coastline_min_gpu_recommender` no split of the batch up to `max_gpus` fits.
 - Nothing was scorable: an unknown or uncalibrated `model_name` makes the
   Kavier performance model return an error-carrying prediction for every
   candidate, so none survives the sweep. Nothing was judged infeasible here;
@@ -207,10 +214,12 @@ uv pip install -e plugins/custom_experiments/coastline
 uv pip install -e "plugins/custom_experiments/coastline[coastline]"
 ```
 
-The `coastline` extra installs the engine, **`coastline-recommender` 0.2.3 or
-newer**. That floor is load-bearing: 0.2.3 is the release that exposes
-`Coastline(empirical_oom_guard=True)` on the public facade, which is how this
-plugin puts the empirical per-device token budget under the `rules` backend.
+The `coastline` extra installs the engine, **`coastline-recommender` 0.3.x**
+(`>=0.3.0,<0.4`). That floor is load-bearing: 0.3.0 is the release whose
+min-GPU algorithm keeps the job's total batch, as in AutoConf, and whose α
+weights runtime and β energy, as in the thesis. The public facade's
+`Coastline(empirical_oom_guard=True)`, which puts the empirical per-device token
+budget under the `rules` backend, dates from 0.2.3.
 
 Confirm the experiments registered:
 
