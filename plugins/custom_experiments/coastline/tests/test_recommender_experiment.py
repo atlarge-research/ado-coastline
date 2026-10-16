@@ -1,5 +1,5 @@
-# Copyright IBM Corporation 2025, 2026
-# SPDX-License-Identifier: MIT
+# Copyright 2026 Radu Nicolae
+# SPDX-License-Identifier: Apache-2.0
 
 """Behavioural tests for the COASTLINE recommender custom experiments.
 

@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: >-
+  If you use ado-coastline in academic work, please cite the MSc thesis
+  (preferred-citation below). Cite this file when you need to refer to a
+  specific released version of the software itself.
+title: ado-coastline
+abstract: >-
+  ado custom experiments that expose the COASTLINE recommender: they reuse the
+  AutoConf feasibility check and rank the feasible GPU layouts by a
+  performance/energy trade-off (Kavier analytical throughput and power).
+type: software
+version: 1.0.0
+date-released: "2026-10-16"
+license: Apache-2.0
+doi: 10.5281/zenodo.23417937
+repository-code: "https://github.com/atlarge-research/ado-coastline/tree/coastline-plugin/plugins/custom_experiments/coastline"
+url: "https://github.com/atlarge-research/ado-coastline/tree/coastline-plugin/plugins/custom_experiments/coastline"
+authors:
+  - given-names: Radu
+    family-names: Nicolae
+    affiliation: Vrije Universiteit Amsterdam
+  - name: AtLarge Research
+    email: info@atlarge-research.com
+keywords:
+  - ado
+  - autoconf
+  - llm
+  - fine-tuning
+  - gpu
+  - recommender
+
+preferred-citation:
+  type: thesis
+  title: "Coastline: Exploring the impact of multi-objective, context-aware recommenders on performance and sustainability of datacenters under LLM fine-tuning workloads"
+  authors:
+    - given-names: Radu
+      family-names: Nicolae
+      affiliation: Vrije Universiteit Amsterdam
+  institution:
+    name: Vrije Universiteit Amsterdam
+  thesis-type: "MSc thesis"
+  year: 2026

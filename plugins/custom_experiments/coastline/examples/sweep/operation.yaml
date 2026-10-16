@@ -1,5 +1,5 @@
-# Copyright IBM Corporation 2025, 2026
-# SPDX-License-Identifier: MIT
+# Copyright 2026 Radu Nicolae
+# SPDX-License-Identifier: Apache-2.0
 #
 # RandomWalk over the COASTLINE recommendation space: one measurement for every
 # point of the space. Run from the root of the ado repository, after the space
